@@ -15,6 +15,8 @@ from jmapc.methods import (
     EmailGet,
     EmailGetResponse,
     EmailQuery,
+    EmailSet,
+    EmailSetResponse,
     MailboxGet,
     MailboxGetResponse,
 )
@@ -41,6 +43,10 @@ def get_mailboxes() -> Dict[str, Mailbox]:
     return dict((d.name, d) for d in res.data if d.name)
 
 
+def get_mailbox_name(id: str) -> str:
+    return next(mb.name or id for mb in get_mailboxes().values() if mb.id == id)
+
+
 def get_mailbox(name: str) -> Mailbox:
     return get_mailboxes()[name]
 
@@ -54,6 +60,15 @@ def get_email(id: str) -> Email:
     )
     assert isinstance(res, EmailGetResponse)
     return res.data[0]
+
+
+def move_email(id: str, mailboxes: List[Mailbox]) -> bool:
+    update = {}
+    update[id] = {"mailboxIds": dict((f"{mb.id}", True) for mb in mailboxes)}
+    print(update)
+    res = client.request(EmailSet(update=update))
+    assert isinstance(res, EmailSetResponse)
+    return res.updated != None
 
 
 def get_emails(mailbox: Mailbox, page_size=30) -> Iterator[Email]:

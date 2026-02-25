@@ -5,7 +5,7 @@ import typer
 from dotenv.main import load_dotenv
 from rich import print as rprint
 
-from mailmon.planner import Planner
+from mailmon.planner import PlanAction, Planner
 
 # Load .env into os.environ before imports
 load_dotenv()
@@ -16,7 +16,9 @@ from mailmon.mailbox import (
     get_email,
     get_emails,
     get_mailbox,
+    get_mailbox_name,
     get_mailboxes,
+    move_email,
 )
 
 app = typer.Typer()
@@ -57,15 +59,42 @@ def plan(
     planner = Planner()
     for email in emails:
         plan = planner.plan(email, regenerate)
-        print(f"{format_addresses(email.mail_from)}:", email.subject)
+        print(f"[{email.id}] {format_addresses(email.mail_from)}:", email.subject)
         planner.print(plan)
         print()
 
 
 @app.command(help="Apply the generate classify plans and update emails")
-def apply():
-    print("TODO")
-    pass
+def apply(
+    email_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--email", help="Run plan for a specific email id", metavar="EMAIL_ID"
+        ),
+    ] = None,
+    regenerate: Annotated[
+        bool, typer.Option(help="Regenerate any persisted plans")
+    ] = False,
+):
+    mailboxes = get_mailboxes()
+    emails = []
+    if email_id:
+        emails = [get_email(email_id)]
+    else:
+        inbox = get_mailbox("Inbox")
+        emails = get_emails(inbox)
+    planner = Planner()
+    for email in emails:
+        plan = planner.plan(email)
+        if plan and plan.action == PlanAction.MOVE:
+            targets = list(mailboxes[target] for target in plan.targets)
+            success = move_email(plan.email_id, targets)
+            if success:
+                updated_mailboxes = get_email(plan.email_id).mailbox_ids or {}
+                mailbox_names = [
+                    get_mailbox_name(mb) for mb in updated_mailboxes.keys()
+                ]
+                print(f"[{plan.email_id}] -> [{', '.join(mailbox_names)}]")
 
 
 def main() -> int:
