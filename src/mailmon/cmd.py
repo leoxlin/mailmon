@@ -5,6 +5,7 @@ from typing import Optional
 
 import typer
 from dotenv.main import load_dotenv
+from rich import print as rprint
 
 # Load .env into os.environ before imports
 load_dotenv()
@@ -16,10 +17,17 @@ app = typer.Typer()
 
 
 @app.command()
-def prompt():
+def prompt(email_id: Optional[str] = None):
     mailboxes = get_mailboxes()
     classifier = Classifier(mailboxes)
+    rprint(":robot: [bold green]System Prompt:[/bold green]\n")
     print(classifier.system_prompt())
+
+    if email_id:
+        email = get_email(email_id)
+        print()
+        rprint(":man_medium_skin_tone: [bold green]User Prompt:[/bold green]\n")
+        print(classifier.user_prompt(email))
 
 
 @app.command()
