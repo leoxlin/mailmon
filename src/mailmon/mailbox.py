@@ -34,6 +34,12 @@ def get_mailbox(name: str) -> Mailbox:
     return get_mailboxes()[name]
 
 
+def get_email(id: str) -> Email:
+    res = client.request(EmailGet(ids=[id]))
+    assert isinstance(res, EmailGetResponse)
+    return res.data[0]
+
+
 def get_emails(mailbox: Mailbox, page_size=50) -> Iterator[Email]:
     anchor = None
 

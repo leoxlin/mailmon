@@ -1,6 +1,7 @@
 # ruff: noqa: E402
 import json
 from itertools import islice
+from typing import Optional
 
 import typer
 from dotenv.main import load_dotenv
@@ -9,16 +10,27 @@ from dotenv.main import load_dotenv
 load_dotenv()
 
 from mailmon.llm import Classifier
-from mailmon.mailbox import get_emails, get_mailbox, get_mailboxes
+from mailmon.mailbox import get_email, get_emails, get_mailbox, get_mailboxes
 
 app = typer.Typer()
 
 
 @app.command()
-def plan():
-    inbox = get_mailbox("Inbox")
+def prompt():
     mailboxes = get_mailboxes()
-    emails = islice(get_emails(inbox), 10)
+    classifier = Classifier(mailboxes)
+    print(classifier.system_prompt())
+
+
+@app.command()
+def plan(email_id: Optional[str] = None):
+    mailboxes = get_mailboxes()
+    emails = []
+    if email_id:
+        emails = [get_email(email_id)]
+    else:
+        inbox = get_mailbox("Inbox")
+        emails = islice(get_emails(inbox), 10)
     classifier = Classifier(mailboxes)
     for email in emails:
         result = json.loads(
@@ -31,6 +43,12 @@ def plan():
             f"Reason: {result['reason']}",
         )
         print()
+
+
+@app.command()
+def apply():
+    print("TODO")
+    pass
 
 
 def main() -> int:
