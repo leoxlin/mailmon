@@ -20,6 +20,7 @@ class PlanSource(Enum):
 class PlanAction(Enum):
     MOVE = "move"
     TRASH = "trash"
+    REVIEW = "review"
     ARCHIVE = "archive"
     MARK_READ = "mark-read"
     MARK_UNREAD = "mark-unread"
@@ -35,7 +36,7 @@ class Plan:
     llm_confidence: Optional[str] = None
     llm_reasoning: Optional[str] = None
     rule_ids: List[str] = field(default_factory=list)
-    target_ids: List[str] = field(default_factory=list)
+    targets: List[str] = field(default_factory=list)
     planned_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -60,9 +61,8 @@ class Planner:
             print()
         else:
             out = f"{plan.action.name.upper()}"
-            if plan.action == PlanAction.MOVE:
-                folders = [self._folder_by_id(m) for m in plan.target_ids]
-                out += f" -> [{', '.join(folders)}]"
+            if plan.targets:
+                out += f" -> [{', '.join(plan.targets)}]"
             if plan.source == PlanSource.LLM or plan.source == PlanSource.HYBRID:
                 out += "\n"
                 out += f"LLM({plan.llm_model}, {plan.llm_confidence}): "
@@ -76,17 +76,17 @@ class Planner:
         if not email.id:
             return None
         res = self.classifier.classify(email)
-        target = self.mailboxes[res.folder].id
-        if not target:
-            return None
+        action = PlanAction.MOVE
+        if res.folder == "Unknown" or res.confidence != "high":
+            action = PlanAction.REVIEW
         return Plan(
             source=PlanSource.LLM,
-            action=PlanAction.MOVE,
+            action=action,
             email_id=email.id,
             llm_model=self.classifier.model,
             llm_confidence=res.confidence,
             llm_reasoning=res.reason,
-            target_ids=[target],
+            targets=[res.folder],
         )
 
 
@@ -103,7 +103,7 @@ class PlanDB:
                 llm_confidence TEXT,
                 llm_reasoning  TEXT,
                 rule_ids       TEXT,
-                target_ids     TEXT,
+                targets        TEXT,
                 planned_at     TIMESTAMP NOT NULL
             )
         """)
@@ -135,7 +135,7 @@ class PlanDB:
             plan.llm_confidence,
             plan.llm_reasoning,
             ",".join(plan.rule_ids),
-            ",".join(plan.target_ids),
+            ",".join(plan.targets),
             plan.planned_at.isoformat(),
         )
 
@@ -148,7 +148,7 @@ class PlanDB:
             llm_confidence=row["llm_confidence"],
             llm_reasoning=row["llm_reasoning"],
             rule_ids=row["rule_ids"].split(","),
-            target_ids=row["target_ids"].split(","),
+            targets=row["targets"].split(","),
             planned_at=datetime.fromisoformat(row["planned_at"]),
         )
 

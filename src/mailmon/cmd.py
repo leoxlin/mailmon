@@ -40,7 +40,9 @@ def prompt(email_id: Optional[str] = None):
 def plan(
     email_id: Annotated[
         Optional[str],
-        typer.Option("--email", help="Run plan for a specific email id"),
+        typer.Option(
+            "--email", help="Run plan for a specific email id", metavar="EMAIL_ID"
+        ),
     ] = None,
     regenerate: Annotated[
         bool, typer.Option(help="Regenerate any persisted plans")
