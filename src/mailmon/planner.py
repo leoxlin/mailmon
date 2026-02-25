@@ -45,11 +45,11 @@ class Planner:
         self.classifier = Classifier(self.mailboxes)
         self.db = PlanDB(os.path.expanduser(os.environ["PLAN_DB_FILE"]))
 
-    def plan(self, email: Email, override=False):
+    def plan(self, email: Email, regenerate=False):
         if not email.id:
             return None
         saved_plan = self.db.get(email.id)
-        if not saved_plan or override:
+        if not saved_plan or regenerate:
             generated_plan = self._generate_plan(email)
             return self.db.insert(generated_plan)
         else:

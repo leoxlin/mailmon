@@ -1,6 +1,5 @@
 # ruff: noqa: E402
-from itertools import islice
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from dotenv.main import load_dotenv
@@ -38,16 +37,24 @@ def prompt(email_id: Optional[str] = None):
 
 
 @app.command(help="Generate a plan for how we will classify emails")
-def plan(email_id: Optional[str] = None):
+def plan(
+    email_id: Annotated[
+        Optional[str],
+        typer.Option("--email", help="Run plan for a specific email id"),
+    ] = None,
+    regenerate: Annotated[
+        bool, typer.Option(help="Regenerate any persisted plans")
+    ] = False,
+):
     emails = []
     if email_id:
         emails = [get_email(email_id)]
     else:
         inbox = get_mailbox("Inbox")
-        emails = islice(get_emails(inbox), 30)
+        emails = get_emails(inbox)
     planner = Planner()
     for email in emails:
-        plan = planner.plan(email)
+        plan = planner.plan(email, regenerate)
         print(f"{format_addresses(email.mail_from)}:", email.subject)
         planner.print(plan)
         print()
