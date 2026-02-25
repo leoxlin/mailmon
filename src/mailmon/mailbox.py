@@ -1,11 +1,12 @@
 import os
 from functools import cache
-from typing import Dict, Iterator
+from typing import Dict, Iterator, List, Optional
 
 from jmapc import (
     Client,
     Comparator,
     Email,
+    EmailAddress,
     EmailQueryFilterCondition,
     Mailbox,
     Ref,
@@ -21,6 +22,15 @@ from jmapc.methods import (
 client = Client.create_with_api_token(
     host=os.environ["JMAP_API_HOST"], api_token=os.environ["JMAP_API_TOKEN"]
 )
+
+
+def format_addresses(addrs: Optional[List[EmailAddress]]) -> str:
+    return ",".join(map(lambda e: e.email or "", addrs or []))
+
+
+def format_email_body(email: Email) -> str:
+    body = email.body_values or {}
+    return "\n".join([ebv.value for ebv in body.values() if ebv.value])
 
 
 @cache

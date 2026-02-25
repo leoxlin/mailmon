@@ -5,7 +5,9 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+  "instructor>=1.14.5",
   "jmapc>=0.2.23",
+  "litellm>=1.81.15",
   "python-dotenv>=1.2.1",
   "pyyaml>=6.0.3",
   "rich>=14.3.3",

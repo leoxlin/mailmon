@@ -1,26 +1,30 @@
 import os
 import textwrap
 from functools import cache
-from typing import Dict, List, Optional
+from typing import Dict, Literal
 
-import requests
+import instructor
+import litellm
 import yaml
-from jmapc import Email, EmailAddress, Mailbox
+from jmapc import Email, Mailbox
+from pydantic import BaseModel, create_model
 
+from mailmon.mailbox import format_addresses, format_email_body
 
-def format_addresses(addrs: Optional[List[EmailAddress]]) -> str:
-    return ",".join(map(lambda e: e.email or "", addrs or []))
-
-
-def format_email_body(email: Email) -> str:
-    body = email.body_values or {}
-    return "\n".join([ebv.value for ebv in body.values() if ebv.value])
+litellm.suppress_debug_info = True
+litellm.set_verbose = False
 
 
 def get_mailmon_rules():
     # TODO: Generate example rules file if it doesn't exist
     with open(os.path.expanduser(os.environ["RULES_FILE"])) as file:
         return yaml.safe_load(file)
+
+
+class ClassifierResult(BaseModel):
+    folder: str
+    confidence: Literal["high", "medium", "low"]
+    reason: str
 
 
 class Classifier:
@@ -36,7 +40,15 @@ class Classifier:
             for mb in mailboxes.keys()
             if mb not in self.rules["system_folders"] and mb in folder_mapping
         )
-        self.folders = list(self.folder_rules.keys())
+        self.folders = list(self.folder_rules.keys()) + ["Unknown"]
+        self.client = instructor.from_litellm(
+            litellm.completion, mode=instructor.Mode.JSON_SCHEMA
+        )
+        self.result_cls = create_model(
+            "ClassifierResult",
+            __base__=ClassifierResult,
+            folder=(Literal[tuple(self.folders)], ...),
+        )
 
     @cache
     def system_prompt(self):
@@ -85,57 +97,21 @@ class Classifier:
         ).lstrip()
         return metadata + format_email_body(email)
 
-    @cache
-    def response_format(self):
-        return {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "email_classification",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "folder": {
-                            "type": "string",
-                            "enum": self.folders,
-                        },
-                        "confidence": {
-                            "type": "string",
-                            "enum": ["high", "medium", "low"],
-                        },
-                        "reason": {"type": "string"},
-                    },
-                    "required": ["folder", "confidence", "reason"],
-                    "additionalProperties": False,
+    def classify(self, email: Email) -> ClassifierResult:
+        return self.client.chat.completions.create(
+            model=self.model,
+            api_base=self.host,
+            api_key=self.token,
+            messages=[
+                {
+                    "role": "system",
+                    "content": self.system_prompt(),
                 },
-            },
-        }
-
-    def classify(self, email: Email):
-        res = requests.post(
-            url=self.host,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self.model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": self.system_prompt(),
-                    },
-                    {
-                        "role": "user",
-                        "content": self.user_prompt(email),
-                    },
-                ],
-                "response_format": self.response_format(),
-            },
+                {
+                    "role": "user",
+                    "content": self.user_prompt(email),
+                },
+            ],
+            response_model=self.result_cls,
+            max_retries=3,
         )
-
-        if not res.ok:
-            # TODO: Handle errors properly
-            print(str(res.reason))
-
-        return res

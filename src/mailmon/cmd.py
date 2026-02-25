@@ -1,5 +1,4 @@
 # ruff: noqa: E402
-import json
 from itertools import islice
 from typing import Optional
 
@@ -7,11 +6,19 @@ import typer
 from dotenv.main import load_dotenv
 from rich import print as rprint
 
+from mailmon.planner import Planner
+
 # Load .env into os.environ before imports
 load_dotenv()
 
 from mailmon.llm import Classifier
-from mailmon.mailbox import get_email, get_emails, get_mailbox, get_mailboxes
+from mailmon.mailbox import (
+    format_addresses,
+    get_email,
+    get_emails,
+    get_mailbox,
+    get_mailboxes,
+)
 
 app = typer.Typer()
 
@@ -32,24 +39,17 @@ def prompt(email_id: Optional[str] = None):
 
 @app.command(help="Generate a plan for how we will classify emails")
 def plan(email_id: Optional[str] = None):
-    mailboxes = get_mailboxes()
     emails = []
     if email_id:
         emails = [get_email(email_id)]
     else:
         inbox = get_mailbox("Inbox")
-        emails = islice(get_emails(inbox), 10)
-    classifier = Classifier(mailboxes)
+        emails = islice(get_emails(inbox), 30)
+    planner = Planner()
     for email in emails:
-        result = json.loads(
-            classifier.classify(email).json()["choices"][0]["message"]["content"]
-        )
-        print(f"{email.id}:", email.subject)
-        print(
-            f"Folder: {result['folder']}",
-            f"Confidence: {result['confidence']}",
-            f"Reason: {result['reason']}",
-        )
+        plan = planner.plan(email)
+        print(f"{format_addresses(email.mail_from)}:", email.subject)
+        print(plan)
         print()
 
 
