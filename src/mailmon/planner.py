@@ -50,7 +50,7 @@ class Planner:
             return None
         saved_plan = self.db.get(email.id)
         if not saved_plan or override:
-            generated_plan = self.generate_plan(email)
+            generated_plan = self._generate_plan(email)
             return self.db.insert(generated_plan)
         else:
             return saved_plan
@@ -72,7 +72,7 @@ class Planner:
     def _folder_by_id(self, id):
         return next(m.name or id for m in self.mailboxes.values() if m.id == id)
 
-    def generate_plan(self, email: Email) -> Optional[Plan]:
+    def _generate_plan(self, email: Email) -> Optional[Plan]:
         if not email.id:
             return None
         res = self.classifier.classify(email)
