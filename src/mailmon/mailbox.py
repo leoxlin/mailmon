@@ -35,12 +35,17 @@ def get_mailbox(name: str) -> Mailbox:
 
 
 def get_email(id: str) -> Email:
-    res = client.request(EmailGet(ids=[id]))
+    res = client.request(
+        EmailGet(
+            ids=[id],
+            fetch_text_body_values=True,
+        )
+    )
     assert isinstance(res, EmailGetResponse)
     return res.data[0]
 
 
-def get_emails(mailbox: Mailbox, page_size=50) -> Iterator[Email]:
+def get_emails(mailbox: Mailbox, page_size=30) -> Iterator[Email]:
     anchor = None
 
     def _get_page():
@@ -56,7 +61,10 @@ def get_emails(mailbox: Mailbox, page_size=50) -> Iterator[Email]:
                     anchor_offset=1,
                     limit=page_size,
                 ),
-                EmailGet(ids=Ref("/ids")),
+                EmailGet(
+                    ids=Ref("/ids"),
+                    fetch_text_body_values=True,
+                ),
             ]
         )
         assert isinstance(res.response, EmailGetResponse)

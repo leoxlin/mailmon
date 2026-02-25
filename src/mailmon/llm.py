@@ -9,7 +9,12 @@ from jmapc import Email, EmailAddress, Mailbox
 
 
 def format_addresses(addrs: Optional[List[EmailAddress]]) -> str:
-    return ",".join(map(lambda e: f"{e.name} <{e.email}>", addrs or []))
+    return ",".join(map(lambda e: e.email or "", addrs or []))
+
+
+def format_email_body(email: Email) -> str:
+    body = email.body_values or {}
+    return "\n".join([ebv.value for ebv in body.values() if ebv.value])
 
 
 def get_mailmon_rules():
@@ -69,16 +74,16 @@ class Classifier:
         return "\n\n".join([base_system_prompt, folder_prompt])
 
     def user_prompt(self, email: Email):
-        return textwrap.dedent(
+        metadata = textwrap.dedent(
             f"""
             From: {format_addresses(email.mail_from)}
             To: {format_addresses(email.to)}
             Subject: {email.subject}
 
             Body:
-            {email.text_body}
             """
-        ).strip()
+        ).lstrip()
+        return metadata + format_email_body(email)
 
     @cache
     def response_format(self):
