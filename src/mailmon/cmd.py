@@ -49,7 +49,7 @@ def plan(email_id: Optional[str] = None):
     for email in emails:
         plan = planner.plan(email)
         print(f"{format_addresses(email.mail_from)}:", email.subject)
-        print(plan)
+        planner.print(plan)
         print()
 
 

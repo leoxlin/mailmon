@@ -19,6 +19,7 @@ from jmapc.methods import (
     MailboxGetResponse,
 )
 
+# TODO: Create abstraction and support other protocol
 client = Client.create_with_api_token(
     host=os.environ["JMAP_API_HOST"], api_token=os.environ["JMAP_API_TOKEN"]
 )

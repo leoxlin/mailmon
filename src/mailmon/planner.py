@@ -38,16 +38,6 @@ class Plan:
     target_ids: List[str] = field(default_factory=list)
     planned_at: datetime = field(default_factory=datetime.utcnow)
 
-    def __str__(self) -> str:
-        out = f"{self.action.name.upper()}"
-        if self.action == PlanAction.MOVE:
-            out += f" [{self.email_id}] -> [{', '.join(self.target_ids)}]"
-        if self.source == PlanSource.LLM or self.source == PlanSource.HYBRID:
-            out += "\n"
-            out += f"LLM({self.llm_model}, {self.llm_confidence}):\n"
-            out += self.llm_reasoning or ""
-        return out
-
 
 class Planner:
     def __init__(self) -> None:
@@ -64,6 +54,23 @@ class Planner:
             return self.db.insert(generated_plan)
         else:
             return saved_plan
+
+    def print(self, plan: Optional[Plan]):
+        if not plan:
+            print()
+        else:
+            out = f"{plan.action.name.upper()}"
+            if plan.action == PlanAction.MOVE:
+                folders = [self._folder_by_id(m) for m in plan.target_ids]
+                out += f" -> [{', '.join(folders)}]"
+            if plan.source == PlanSource.LLM or plan.source == PlanSource.HYBRID:
+                out += "\n"
+                out += f"LLM({plan.llm_model}, {plan.llm_confidence}): "
+                out += plan.llm_reasoning or ""
+            print(out)
+
+    def _folder_by_id(self, id):
+        return next(m.name or id for m in self.mailboxes.values() if m.id == id)
 
     def generate_plan(self, email: Email) -> Optional[Plan]:
         if not email.id:

@@ -12,7 +12,6 @@ from pydantic import BaseModel, create_model
 from mailmon.mailbox import format_addresses, format_email_body
 
 litellm.suppress_debug_info = True
-litellm.set_verbose = False
 
 
 def get_mailmon_rules():
