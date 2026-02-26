@@ -27,69 +27,6 @@ class PlanAction(Enum):
     MARK_PINNED = "mark-pinned"
 
 
-@dataclass
-class Plan:
-    email_id: str
-    source: PlanSource
-    action: PlanAction
-    llm_model: Optional[str] = None
-    llm_confidence: Optional[str] = None
-    llm_reasoning: Optional[str] = None
-    rule_ids: List[str] = field(default_factory=list)
-    targets: List[str] = field(default_factory=list)
-    planned_at: datetime = field(default_factory=datetime.utcnow)
-
-
-class Planner:
-    def __init__(self) -> None:
-        self.mailboxes = get_mailboxes()
-        self.classifier = Classifier(self.mailboxes)
-        self.db = PlanDB(os.path.expanduser(os.environ["PLAN_DB_FILE"]))
-
-    def plan(self, email: Email, regenerate=False):
-        if not email.id:
-            return None
-        saved_plan = self.db.get(email.id)
-        if not saved_plan or regenerate:
-            generated_plan = self._generate_plan(email)
-            return self.db.insert(generated_plan)
-        else:
-            return saved_plan
-
-    def print(self, plan: Optional[Plan]):
-        if not plan:
-            print()
-        else:
-            out = f"{plan.action.name.upper()}"
-            if plan.targets:
-                out += f" -> [{', '.join(plan.targets)}]"
-            if plan.source == PlanSource.LLM or plan.source == PlanSource.HYBRID:
-                out += "\n"
-                out += f"LLM({plan.llm_model}, {plan.llm_confidence}): "
-                out += plan.llm_reasoning or ""
-            print(out)
-
-    def _folder_by_id(self, id):
-        return next(m.name or id for m in self.mailboxes.values() if m.id == id)
-
-    def _generate_plan(self, email: Email) -> Optional[Plan]:
-        if not email.id:
-            return None
-        res = self.classifier.classify(email)
-        action = PlanAction.MOVE
-        if res.folder == "Unknown" or res.confidence != "high":
-            action = PlanAction.REVIEW
-        return Plan(
-            source=PlanSource.LLM,
-            action=action,
-            email_id=email.id,
-            llm_model=self.classifier.model,
-            llm_confidence=res.confidence,
-            llm_reasoning=res.reason,
-            targets=[res.folder],
-        )
-
-
 class PlanDB:
     def __init__(self, db_path):
         self.conn = sqlite3.connect(db_path)
@@ -171,3 +108,72 @@ class PlanDB:
             "SELECT * FROM plan WHERE email_id = ?", (email_id,)
         ).fetchone()
         return self._from_row(row) if row else None
+
+    def get_by_target(self, target: str) -> List[Plan]:
+        rows = self.conn.execute(
+            "SELECT * FROM plan WHERE INSTR(targets, ?)", (target,)
+        ).fetchall()
+        return [self._from_row(row) for row in rows]
+
+
+@dataclass
+class Plan:
+    email_id: str
+    source: PlanSource
+    action: PlanAction
+    llm_model: Optional[str] = None
+    llm_confidence: Optional[str] = None
+    llm_reasoning: Optional[str] = None
+    rule_ids: List[str] = field(default_factory=list)
+    targets: List[str] = field(default_factory=list)
+    planned_at: datetime = field(default_factory=datetime.utcnow)
+
+
+class Planner(PlanDB):
+    def __init__(self) -> None:
+        super().__init__(os.path.expanduser(os.environ["PLAN_DB_FILE"]))
+        self.mailboxes = get_mailboxes()
+        self.classifier = Classifier(self.mailboxes)
+
+    def plan(self, email: Email, regenerate=False):
+        if not email.id:
+            return None
+        saved_plan = self.get(email.id)
+        if not saved_plan or regenerate:
+            generated_plan = self._generate_plan(email)
+            return self.insert(generated_plan)
+        else:
+            return saved_plan
+
+    def print(self, plan: Optional[Plan]):
+        if not plan:
+            print()
+        else:
+            out = f"{plan.action.name.upper()}"
+            if plan.targets:
+                out += f" -> [{', '.join(plan.targets)}]"
+            if plan.source == PlanSource.LLM or plan.source == PlanSource.HYBRID:
+                out += "\n"
+                out += f"LLM({plan.llm_model}, {plan.llm_confidence}): "
+                out += plan.llm_reasoning or ""
+            print(out)
+
+    def _folder_by_id(self, id):
+        return next(m.name or id for m in self.mailboxes.values() if m.id == id)
+
+    def _generate_plan(self, email: Email) -> Optional[Plan]:
+        if not email.id:
+            return None
+        res = self.classifier.classify(email)
+        action = PlanAction.MOVE
+        if res.folder == "Unknown" or res.confidence != "high":
+            action = PlanAction.REVIEW
+        return Plan(
+            source=PlanSource.LLM,
+            action=action,
+            email_id=email.id,
+            llm_model=self.classifier.model,
+            llm_confidence=res.confidence,
+            llm_reasoning=res.reason,
+            targets=[res.folder],
+        )

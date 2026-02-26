@@ -1,11 +1,11 @@
 # ruff: noqa: E402
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 import typer
 from dotenv.main import load_dotenv
 from rich import print as rprint
 
-from mailmon.planner import PlanAction, Planner
+from mailmon.planner import Plan, PlanAction, Planner
 
 # Load .env into os.environ before imports
 load_dotenv()
@@ -95,6 +95,40 @@ def apply(
                     get_mailbox_name(mb) for mb in updated_mailboxes.keys()
                 ]
                 print(f"[{plan.email_id}] -> [{', '.join(mailbox_names)}]")
+
+
+@app.command(help="Rerun plan for a specifc set of plans")
+def replan(
+    email_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--email", help="Rerun plan for a specific email id", metavar="EMAIL_ID"
+        ),
+    ] = None,
+    target_folder: Annotated[
+        Optional[str],
+        typer.Option(
+            "--target",
+            help="Rerun plan for a specific target folder",
+            metavar="FOLDER_NAME",
+        ),
+    ] = None,
+):
+    planner = Planner()
+    plans: List[Plan] = []
+
+    if email_id and (plan := planner.get(email_id)) is not None:
+        plans.append(plan)
+
+    if target_folder:
+        plans.extend(planner.get_by_target(target_folder))
+
+    for plan in plans:
+        email = get_email(plan.email_id)
+        planner.plan(email, regenerate=True)
+        print(f"[{email.id}] {format_addresses(email.mail_from)}:", email.subject)
+        planner.print(plan)
+        print()
 
 
 def main() -> int:
