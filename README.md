@@ -6,7 +6,8 @@ monitoring and summaries. Mailmon does not replace your email client.
 
 ## Mailmon vs OpenClaw/Filters
 
-Giving an agent full reign over your mailbox is unpredictable and dangerous.
+Giving an agent full reign over your mailbox is
+[unpredictable and dangerous](https://www.businessinsider.com/meta-ai-alignment-director-openclaw-email-deletion-2026-2).
 Writing filters for every single category is also unsustainable in the world of
 email overload. Mailmon seeks to be inbetween those solutions where it leverages
 LLMs but still gives you full control.
