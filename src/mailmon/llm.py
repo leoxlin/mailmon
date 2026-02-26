@@ -1,23 +1,15 @@
-import os
 import textwrap
 from functools import cache
-from typing import Dict, Literal
+from typing import Literal
 
 import instructor
 import litellm
-import yaml
-from jmapc import Email, Mailbox
 from pydantic import BaseModel, create_model
 
-from mailmon.mailbox import format_addresses, format_email_body
+from mailmon.config import Config, FolderPromptRule
+from mailmon.mailbox import Email, Mailbox
 
 litellm.suppress_debug_info = True
-
-
-def get_mailmon_rules():
-    # TODO: Generate example rules file if it doesn't exist
-    with open(os.path.expanduser(os.environ["RULES_FILE"])) as file:
-        return yaml.safe_load(file)
 
 
 class ClassifierResult(BaseModel):
@@ -27,18 +19,17 @@ class ClassifierResult(BaseModel):
 
 
 class Classifier:
-    def __init__(self, mailboxes: Dict[str, Mailbox]) -> None:
-        self.model = os.environ["LLM_MODEL"]
-        self.host = os.environ["LLM_API_HOST"]
-        self.token = os.environ["LLM_API_TOKEN"]
-        self.rules = get_mailmon_rules()
-        # TODO: Map rules to a python object
-        folder_mapping = dict((f["name"], f) for f in self.rules["folders"])
-        self.folder_rules = dict(
-            (mb, folder_mapping[mb])
+    def __init__(self, config: Config, mailboxes: dict[str, Mailbox]) -> None:
+        self.model = config.llm.model
+        self.host = config.llm.api_host
+        self.token = config.llm.api_token
+        rules = config.rules
+        folder_mapping = {rule.name: rule for rule in rules.folder_prompts}
+        self.folder_rules: dict[str, FolderPromptRule] = {
+            mb: folder_mapping[mb]
             for mb in mailboxes.keys()
-            if mb not in self.rules["system_folders"] and mb in folder_mapping
-        )
+            if mb not in rules.system_folders and mb in folder_mapping
+        }
         self.folders = list(self.folder_rules.keys()) + ["Unknown"]
         self.client = instructor.from_litellm(
             litellm.completion, mode=instructor.Mode.JSON_SCHEMA
@@ -51,14 +42,13 @@ class Classifier:
 
     @cache
     def system_prompt(self):
-        def _render_rule(rule) -> str:
-
+        def _render_rule(rule: FolderPromptRule) -> str:
             return "\n".join(
                 [
-                    f"## {rule['name']}",
-                    f"Description: {rule['description']}",
+                    f"## {rule.name}",
+                    f"Description: {rule.description}",
                     "Examples:",
-                    "\n".join(f"  - {example}" for example in rule["examples"]),
+                    "\n".join(f"  - {example}" for example in rule.examples),
                 ]
             )
 
@@ -87,14 +77,14 @@ class Classifier:
     def user_prompt(self, email: Email):
         metadata = textwrap.dedent(
             f"""
-            From: {format_addresses(email.mail_from)}
-            To: {format_addresses(email.to)}
+            From: {email.formatted_from()}
+            To: {email.formatted_to()}
             Subject: {email.subject}
 
             Body:
             """
         ).lstrip()
-        return metadata + format_email_body(email)
+        return metadata + email.formatted_body()
 
     def classify(self, email: Email) -> ClassifierResult:
         return self.client.chat.completions.create(

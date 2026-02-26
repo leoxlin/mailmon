@@ -1,14 +1,12 @@
-import os
 import sqlite3
 from dataclasses import dataclass, field, fields
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
-from jmapc import Email
-
+from mailmon.config import Config
 from mailmon.llm import Classifier
-from mailmon.mailbox import get_mailboxes
+from mailmon.mailbox import Email
 
 
 class PlanSource(Enum):
@@ -25,6 +23,29 @@ class PlanAction(Enum):
     MARK_READ = "mark-read"
     MARK_UNREAD = "mark-unread"
     MARK_PINNED = "mark-pinned"
+
+
+@dataclass
+class Plan:
+    email_id: str
+    source: PlanSource
+    action: PlanAction
+    llm_model: Optional[str] = None
+    llm_confidence: Optional[str] = None
+    llm_reasoning: Optional[str] = None
+    rule_ids: list[str] = field(default_factory=list)
+    targets: list[str] = field(default_factory=list)
+    planned_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def __str__(self) -> str:
+        out = f"{self.action.name.upper()}"
+        if self.targets:
+            out += f" -> [{', '.join(self.targets)}]"
+        if self.source in (PlanSource.LLM, PlanSource.HYBRID):
+            out += "\n"
+            out += f"LLM({self.llm_model}, {self.llm_confidence}): "
+            out += self.llm_reasoning or ""
+        return out
 
 
 class PlanDB:
@@ -54,14 +75,6 @@ class PlanDB:
 
     def __exit__(self, *_):
         self.conn.close()
-
-    @staticmethod
-    def _encode_list(values: List[str]) -> str:
-        return ",".join(values)
-
-    @staticmethod
-    def _decode_list(value: str) -> List[str]:
-        return value.split(",") if value else []
 
     def _to_row(self, plan: Plan) -> tuple:
         return (
@@ -109,57 +122,28 @@ class PlanDB:
         ).fetchone()
         return self._from_row(row) if row else None
 
-    def get_by_target(self, target: str) -> List[Plan]:
+    def get_by_target(self, target: str) -> list[Plan]:
         rows = self.conn.execute(
             "SELECT * FROM plan WHERE INSTR(targets, ?)", (target,)
         ).fetchall()
         return [self._from_row(row) for row in rows]
 
 
-@dataclass
-class Plan:
-    email_id: str
-    source: PlanSource
-    action: PlanAction
-    llm_model: Optional[str] = None
-    llm_confidence: Optional[str] = None
-    llm_reasoning: Optional[str] = None
-    rule_ids: List[str] = field(default_factory=list)
-    targets: List[str] = field(default_factory=list)
-    planned_at: datetime = field(default_factory=datetime.utcnow)
-
-
 class Planner(PlanDB):
-    def __init__(self) -> None:
-        super().__init__(os.path.expanduser(os.environ["PLAN_DB_FILE"]))
-        self.mailboxes = get_mailboxes()
-        self.classifier = Classifier(self.mailboxes)
+    def __init__(
+        self,
+        config: Config,
+        classifier: Classifier,
+    ) -> None:
+        super().__init__(config.plan_file)
+        self.classifier = classifier
 
     def plan(self, email: Email, regenerate=False):
         if not email.id:
             return None
-        saved_plan = self.get(email.id)
-        if not saved_plan or regenerate:
-            generated_plan = self._generate_plan(email)
-            return self.insert(generated_plan)
-        else:
-            return saved_plan
-
-    def print(self, plan: Optional[Plan]):
-        if not plan:
-            print()
-        else:
-            out = f"{plan.action.name.upper()}"
-            if plan.targets:
-                out += f" -> [{', '.join(plan.targets)}]"
-            if plan.source == PlanSource.LLM or plan.source == PlanSource.HYBRID:
-                out += "\n"
-                out += f"LLM({plan.llm_model}, {plan.llm_confidence}): "
-                out += plan.llm_reasoning or ""
-            print(out)
-
-    def _folder_by_id(self, id):
-        return next(m.name or id for m in self.mailboxes.values() if m.id == id)
+        if not (saved_plan := self.get(email.id)) or regenerate:
+            return self.insert(self._generate_plan(email))
+        return saved_plan
 
     def _generate_plan(self, email: Email) -> Optional[Plan]:
         if not email.id:
