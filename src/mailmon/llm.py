@@ -57,17 +57,29 @@ class Classifier:
         )
         base_system_prompt = textwrap.dedent(
             """
-            You are an email classifier. Categorize each email into exactly one of
-            the following folders. Follow the rules, folder description, and examples
-            closely.
+            You are an email classifier for a personal inbox. Given an email,
+            assign it to the single best-matching folder from the list below.
 
-            # Rules
+            # Classification guidelines
 
-              - You must pick the single best matching folder.
-              - If no folder fits well, respond with "Unknown" folder.
-              - When providing reason, keep it short to under 30 words.
-              - Do not invent new folders.
-              - Return only valid JSON.
+            - Examine the sender, subject, and body. Sender address and
+              subject line are usually the strongest signals.
+            - Choose the folder whose description and examples most closely
+              match the email. When an email could fit multiple folders,
+              prefer the more specific folder.
+            - Use "Unknown" only when no folder is a reasonable match.
+
+            # Confidence levels
+
+            - high: The email clearly matches one folder with strong signals.
+            - medium: The email likely belongs in the chosen folder but has
+              some ambiguity.
+            - low: The email is a weak fit; you are uncertain.
+
+            # Reason
+
+            In the reason field, briefly cite the key signal (sender, subject
+            keyword, or content pattern) that determined your choice.
 
             # Folders
             """
