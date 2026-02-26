@@ -14,25 +14,17 @@ folders: []
 #   description: Newsletters, local events, and substack
 #   examples:
 #     - News & Events
-#     - Summer 2024 Newsletter
+#     - Summer 2025 Newsletter
 # - name: Receipt
 #   description: Receipts, delivery & order confirmations
 #   examples:
 #     - Your Friday evening trip with Uber
-#     - Your receipt from Kagi
+#     - Your receipt from Apple
 # - name: Finance
 #   description: Financial statement, monthly statements, investments
 #   examples:
 #     - Your credit card statement is available
 #     - Your January 2026 transaction history
-
-system_folders:
-  - Inbox
-  - Archive
-  - Drafts
-  - Sent
-  - Spam
-  - Trash
 """
 
 
@@ -82,7 +74,17 @@ class Rules:
             ]
         return cls(
             folder_prompts=folder_prompts,
-            system_folders=data.get("system_folders", []),
+            system_folders=data.get(
+                "system_folders",
+                [
+                    "Inbox",
+                    "Archive",
+                    "Drafts",
+                    "Sent",
+                    "Spam",
+                    "Trash",
+                ],
+            ),
         )
 
 

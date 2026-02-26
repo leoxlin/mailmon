@@ -11,6 +11,38 @@ Writing filters for every single category is also unsustainable in the world of
 email overload. Mailmon seeks to be inbetween those solutions where it leverages
 LLMs but still gives you full control.
 
+## Configuration
+
+Mailmon creates a system prompt using a base prompt file and specific folder
+prompts defined in the rules file (`~/.config/mailmon/rules.yaml`).
+
+You can preview the prompt with `mailmon prompt`.
+
+```yaml
+folders:
+  - name: Update
+    description: Automated updates like reminders, 2fa code, login notification
+    examples:
+      - A new sign-in on Windows
+      - Your one-time code
+  - name: Newsletter
+    description: Newsletters, local events, and substack
+    examples:
+      - News & Events
+      - Summer 2025 Newsletter
+  - name: Receipt
+    description: Receipts, delivery & order confirmations
+    examples:
+      - Your Friday evening trip with Uber
+      - Your receipt from Apple
+  - name: Finance
+    description: Financial statement, monthly statements, investments
+    examples:
+      - Your credit card statement is available
+      - Your January 2026 transaction history
+```
+
+
 ## Development
 
 ```
