@@ -16,7 +16,7 @@ from jmapc.methods import (
 )
 
 from mailmon.config import JMAPConfig
-from mailmon.mailbox.models import Email, Mailbox, MailboxBackend
+from mailmon.mailbox.models import Email, Mailbox, MailboxBackend, MailboxError
 
 
 class JMAPBackend(MailboxBackend):
@@ -79,7 +79,7 @@ class JMAPBackend(MailboxBackend):
         anchor = None
 
         def _get_page():
-            (_, res) = self.client.request(
+            (qres, res) = self.client.request(
                 [
                     EmailQuery(
                         collapse_threads=True,
@@ -97,8 +97,14 @@ class JMAPBackend(MailboxBackend):
                     ),
                 ]
             )
-            assert isinstance(res.response, EmailGetResponse)
-            return res.response.data
+            if isinstance(res.response, EmailGetResponse):
+                return res.response.data
+            elif isinstance(qres.response, Exception):
+                raise qres.response
+            elif isinstance(res.response, Exception):
+                raise res.response
+            else:
+                raise MailboxError("Fetch email page failed")
 
         while True:
             page = _get_page()

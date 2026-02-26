@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+class MailboxError(Exception):
+    pass
+
+
 class MailboxBackend(ABC):
     @abstractmethod
     def get_mailboxes(self) -> dict[str, Mailbox]: ...

@@ -1,11 +1,11 @@
-from typing import Annotated, Iterable, Optional
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
 
 from mailmon.config import Config
 from mailmon.llm import Classifier
-from mailmon.mailbox import Email, JMAPBackend
+from mailmon.mailbox import JMAPBackend
 from mailmon.planner import Plan, PlanAction, Planner
 
 app = typer.Typer()
@@ -63,16 +63,18 @@ def apply(
         bool, typer.Option(help="Regenerate any persisted plans")
     ] = False,
 ):
-    emails: Iterable[Email] = []
-    if email_id and (email := backend.get_email(email_id)):
-        emails = [email]
-    elif inbox := backend.get_mailbox("Inbox"):
-        emails = backend.get_emails(inbox)
     mailboxes = backend.get_mailboxes()
     classifier = Classifier(config, backend.get_mailboxes())
     planner = Planner(config, classifier)
-    for email in emails:
-        if (plan := planner.plan(email)) and plan.action == PlanAction.MOVE:
+    plans: list[Plan] = []
+
+    if not email_id:
+        plans = planner.get_all()
+    elif (plan := planner.get(email_id)) is not None:
+        plans = [plan]
+
+    for plan in plans:
+        if plan.action == PlanAction.MOVE:
             targets = list(mailboxes[target] for target in plan.targets)
             if backend.move_email(plan.email_id, targets):
                 if (
@@ -82,6 +84,7 @@ def apply(
                         backend.get_mailbox_name(mb)
                         for mb in updated.mailbox_ids.keys()
                     ]
+                    planner.delete(plan.email_id)
                     print(f"[{plan.email_id}] -> [{', '.join(mailbox_names)}]")
 
 

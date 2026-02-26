@@ -122,6 +122,10 @@ class PlanDB:
         ).fetchone()
         return self._from_row(row) if row else None
 
+    def get_all(self) -> list[Plan]:
+        rows = self.conn.execute("SELECT * FROM plan").fetchall()
+        return [self._from_row(row) for row in rows]
+
     def get_by_target(self, target: str) -> list[Plan]:
         rows = self.conn.execute(
             "SELECT * FROM plan WHERE INSTR(targets, ?)", (target,)
